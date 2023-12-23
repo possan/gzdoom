@@ -375,85 +375,225 @@ bool FGLRenderer::QuadStereoCheckInitialRenderContextState()
 //
 //==========================================================================
 
-void FGLRenderer::PresentQuadStereo()
-{
-	if (QuadStereoCheckInitialRenderContextState())
-	{
-		mBuffers->BindOutputFB();
+void FGLRenderer::PresentQuadStereo() {
+  if (QuadStereoCheckInitialRenderContextState()) {
+    mBuffers->BindOutputFB();
 
-		glDrawBuffer(GL_BACK_LEFT);
-		ClearBorders();
-		mBuffers->BindEyeTexture(0, 0);
-		DrawPresentTexture(screen->mOutputLetterbox, true);
+    glDrawBuffer(GL_BACK_LEFT);
+    ClearBorders();
+    mBuffers->BindEyeTexture(0, 0);
+    DrawPresentTexture(screen->mOutputLetterbox, true);
 
-		glDrawBuffer(GL_BACK_RIGHT);
-		ClearBorders();
-		mBuffers->BindEyeTexture(1, 0);
-		DrawPresentTexture(screen->mOutputLetterbox, true);
+    glDrawBuffer(GL_BACK_RIGHT);
+    ClearBorders();
+    mBuffers->BindEyeTexture(1, 0);
+    DrawPresentTexture(screen->mOutputLetterbox, true);
 
-		glDrawBuffer(GL_BACK);
-	}
-	else
-	{
-		mBuffers->BindOutputFB();
-		ClearBorders();
-		mBuffers->BindEyeTexture(0, 0);
-		DrawPresentTexture(screen->mOutputLetterbox, true);
-	}
+    glDrawBuffer(GL_BACK);
+  } else {
+    mBuffers->BindOutputFB();
+    ClearBorders();
+    mBuffers->BindEyeTexture(0, 0);
+    DrawPresentTexture(screen->mOutputLetterbox, true);
+  }
 }
 
+void FGLRenderer::PresentDome1(int vrmode) {
+  {
+    FGLPostProcessState savedState;
+    savedState.SaveTextureBindings(7);
+  
+    mBuffers->BindOutputFB();
+    ClearBorders();
 
-void FGLRenderer::PresentStereo()
-{
-	auto vrmode = VRMode::GetVRMode(true);
-	const int eyeCount = vrmode->mEyeCount;
-	// Don't invalidate the bound framebuffer (..., false)
-	if (eyeCount > 1)
-		mBuffers->BlitToEyeTexture(mBuffers->CurrentEye(), false);
+    // Bind each eye texture, for composition in the shader
+    mBuffers->BindEyeTexture(0, 0);
+    mBuffers->BindEyeTexture(1, 1);
+    mBuffers->BindEyeTexture(2, 2);
+    mBuffers->BindEyeTexture(3, 3);
+    mBuffers->BindEyeTexture(4, 4);
+    mBuffers->BindEyeTexture(5, 5);
+    // mBuffers->BindEyeCubemap(0, 6);
 
-	switch (vr_mode)
-	{
-	default:
-		return;
+    const IntRect &box = screen->mOutputLetterbox;
+    glViewport(box.left, box.top, box.width, box.height);
 
-	case VR_GREENMAGENTA:
-		PresentAnaglyph(false, true, false);
-		break;
+    mPresentDome1Shader->Bind();
 
-	case VR_REDCYAN:
-		PresentAnaglyph(true, false, false);
-		break;
+    if (framebuffer->IsHWGammaActive()) {
+      mPresentDome1Shader->Uniforms->InvGamma = 1.0f;
+      mPresentDome1Shader->Uniforms->Contrast = 1.0f;
+      mPresentDome1Shader->Uniforms->Brightness = 0.0f;
+      mPresentDome1Shader->Uniforms->Saturation = 1.0f;
+    } else {
+      mPresentDome1Shader->Uniforms->InvGamma =
+          1.0f / clamp<float>(vid_gamma, 0.1f, 4.f);
+      mPresentDome1Shader->Uniforms->Contrast =
+          clamp<float>(vid_contrast, 0.1f, 3.f);
+      mPresentDome1Shader->Uniforms->Brightness =
+          clamp<float>(vid_brightness, -0.8f, 0.8f);
+      mPresentDome1Shader->Uniforms->Saturation =
+          clamp<float>(vid_saturation, -15.0f, 15.0f);
+      mPresentDome1Shader->Uniforms->GrayFormula =
+          static_cast<int>(gl_satformula);
+    }
 
-	case VR_AMBERBLUE:
-		PresentAnaglyph(true, true, false);
-		break;
+    mPresentDome1Shader->Uniforms->Time = screen->FrameTime / 1000.0f;
+    mPresentDome1Shader->Uniforms->WindowPositionParity = 0;
 
-	case VR_SIDEBYSIDEFULL:
-	case VR_SIDEBYSIDESQUISHED:
-	case VR_SIDEBYSIDELETTERBOX:
-		PresentSideBySide(vr_mode);
-		break;
+    mPresentDome1Shader->Uniforms->HdrMode = 0;
+    mPresentDome1Shader->Uniforms->ColorScale =
+        (gl_dither_bpc == -1) ? 255.0f : (float)((1 << gl_dither_bpc) - 1);
 
-	case VR_TOPBOTTOM:
-		PresentTopBottom();
-		break;
+    mPresentDome1Shader->Uniforms->Scale = {
+        screen->mScreenViewport.width / (float)mBuffers->GetWidth(),
+        screen->mScreenViewport.height / (float)mBuffers->GetHeight()};
 
-	case VR_ROWINTERLEAVED:
-		PresentRowInterleaved();
-		break;
+    mPresentDome1Shader->Uniforms->Offset = {0.0f, 0.0f};
 
-	case VR_COLUMNINTERLEAVED:
-		PresentColumnInterleaved();
-		break;
+    mPresentDome1Shader->Uniforms->Time = screen->FrameTime / 1000.0f;
+    mPresentDome1Shader->Uniforms->Pitch = dome_pitch;
 
-	case VR_CHECKERINTERLEAVED:
-		PresentCheckerInterleaved();
-		break;
+    mPresentDome1Shader->Uniforms.SetData();
 
-	case VR_QUADSTEREO:
-		PresentQuadStereo();
-		break;
-	}
+    static_cast<GLDataBuffer *>(mPresentDome1Shader->Uniforms.GetBuffer())
+        ->BindBase();
+
+    RenderScreenQuad();
+  }
+
+  if (dome_rendercubemap > 0) {
+    int size = 12;
+    if (dome_rendercubemap == 2) {
+      size = 8;
+    }
+    if (dome_rendercubemap == 3) {
+      size = 4;
+    }
+    int cellwidth = screen->mOutputLetterbox.width / size;
+    int cellheight = screen->mOutputLetterbox.width / size;
+
+    int col0 = 0;
+    int col1 = cellwidth;
+    int col2 = cellwidth * 2;
+    int col3 = cellwidth * 3;
+
+    int bottomrow1 = cellheight * 0;
+    int bottomrow2 = cellheight * 1;
+    int bottomrow3 = cellheight * 2;
+
+    // Order: https://learnopengl.com/img/advanced/cubemaps_skybox.png
+
+    IntRect leftRect = screen->mOutputLetterbox;
+    leftRect.height = cellheight;
+    leftRect.width = cellwidth;
+    leftRect.top = bottomrow2;
+    leftRect.left = col0;
+
+    IntRect rightRect = screen->mOutputLetterbox;
+    rightRect.height = cellheight;
+    rightRect.width = cellwidth;
+    rightRect.top = bottomrow2;
+    rightRect.left = col2;
+
+    IntRect upRect = screen->mOutputLetterbox;
+    upRect.height = cellheight;
+    upRect.width = cellwidth;
+    upRect.top = bottomrow3;
+    upRect.left = col1;
+
+    IntRect downRect = screen->mOutputLetterbox;
+    downRect.height = cellheight;
+    downRect.width = cellwidth;
+    downRect.top = bottomrow1;
+    downRect.left = col1;
+
+    IntRect frontRect = screen->mOutputLetterbox;
+    frontRect.height = cellheight;
+    frontRect.width = cellwidth;
+    frontRect.top = bottomrow2;
+    frontRect.left = col1;
+
+    IntRect backRect = screen->mOutputLetterbox;
+    backRect.height = cellheight;
+    backRect.width = cellwidth;
+    backRect.top = bottomrow2;
+    backRect.left = col3;
+
+    mBuffers->BindEyeTexture(0, 0);
+    DrawPresentTexture(rightRect, true);
+
+    mBuffers->BindEyeTexture(1, 0);
+    DrawPresentTexture(leftRect, true);
+
+    mBuffers->BindEyeTexture(2, 0);
+    DrawPresentTexture(downRect, true);
+
+    mBuffers->BindEyeTexture(3, 0);
+    DrawPresentTexture(upRect, true);
+
+    mBuffers->BindEyeTexture(4, 0);
+    DrawPresentTexture(backRect, true);
+
+    mBuffers->BindEyeTexture(5, 0);
+    DrawPresentTexture(frontRect, true);
+  }
+
 }
 
+void FGLRenderer::PresentStereo() {
+  auto vrmode = VRMode::GetVRMode(true);
+  const int eyeCount = vrmode->mEyeCount;
+  // Don't invalidate the bound framebuffer (..., false)
+  if (eyeCount > 1)
+    mBuffers->BlitToEyeTexture(mBuffers->CurrentEye(), false);
+
+  switch (vr_mode) {
+  default:
+    return;
+
+  case VR_GREENMAGENTA:
+    PresentAnaglyph(false, true, false);
+    break;
+
+  case VR_REDCYAN:
+    PresentAnaglyph(true, false, false);
+    break;
+
+  case VR_AMBERBLUE:
+    PresentAnaglyph(true, true, false);
+    break;
+
+  case VR_SIDEBYSIDEFULL:
+  case VR_SIDEBYSIDESQUISHED:
+  case VR_SIDEBYSIDELETTERBOX:
+    PresentSideBySide(vr_mode);
+    break;
+
+  case VR_TOPBOTTOM:
+    PresentTopBottom();
+    break;
+
+  case VR_ROWINTERLEAVED:
+    PresentRowInterleaved();
+    break;
+
+  case VR_COLUMNINTERLEAVED:
+    PresentColumnInterleaved();
+    break;
+
+  case VR_CHECKERINTERLEAVED:
+    PresentCheckerInterleaved();
+    break;
+
+  case VR_QUADSTEREO:
+    PresentQuadStereo();
+    break;
+
+  case VR_DOME1:
+    PresentDome1(vr_mode);
+    break;
+  }
 }
+
+} // namespace OpenGLRenderer

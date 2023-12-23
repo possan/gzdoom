@@ -88,6 +88,7 @@ void FGLRenderer::Initialize(int width, int height)
 	mPresent3dCheckerShader = new FPresent3DCheckerShader();
 	mPresent3dColumnShader = new FPresent3DColumnShader();
 	mPresent3dRowShader = new FPresent3DRowShader();
+	mPresentDome1Shader = new FPresentDome1Shader();
 	mShadowMapShader = new FShadowMapShader();
 
 	// needed for the core profile, because someone decided it was a good idea to remove the default VAO.
@@ -120,6 +121,7 @@ FGLRenderer::~FGLRenderer()
 	if (mPresent3dCheckerShader) delete mPresent3dCheckerShader;
 	if (mPresent3dColumnShader) delete mPresent3dColumnShader;
 	if (mPresent3dRowShader) delete mPresent3dRowShader;
+	if (mPresentDome1Shader) delete mPresentDome1Shader;
 	if (mShadowMapShader) delete mShadowMapShader;
 }
 

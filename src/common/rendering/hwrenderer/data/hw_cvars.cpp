@@ -93,6 +93,19 @@ CUSTOM_CVARD(Float, vid_saturation, 1.f, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "adju
 	else if (self > 3) self = 3;
 }
 
+CUSTOM_CVARD(Float, dome_pitch, 0.f, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "dome pitch rotation")
+{
+	if (self < -180) self = -180;
+	else if (self > 180) self = 180;
+}
+
+CUSTOM_CVARD(Int, dome_rendercubemap, 0, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "dome render cubemap")
+{
+	if (self < 0) self = 0;
+	else if (self > 3) self = 3;
+	
+}
+
 CCMD (bumpgamma)
 {
 	// [RH] Gamma correction tables are now generated on the fly for *any* gamma level

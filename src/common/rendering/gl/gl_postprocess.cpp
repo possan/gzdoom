@@ -89,10 +89,10 @@ void FGLRenderer::BlurScene(float gameinfobluramount)
 
 	auto vrmode = VRMode::GetVRMode(true);
 	int eyeCount = vrmode->mEyeCount;
-	for (int i = 0; i < eyeCount; ++i)
+	for (int i = 0; i < eyeCount; i ++)
 	{
 		hw_postprocess.bloom.RenderBlur(&renderstate, sceneWidth, sceneHeight, gameinfobluramount);
-		if (eyeCount - i > 1) mBuffers->NextEye(eyeCount);
+		if (i < eyeCount) mBuffers->NextEye(eyeCount);
 	}
 }
 
@@ -118,11 +118,15 @@ void FGLRenderer::Flush()
 	{
 		// Render 2D to eye textures
 		int eyeCount = vrmode->mEyeCount;
-		for (int eye_ix = 0; eye_ix < eyeCount; ++eye_ix)
+		for (int eye_ix = 0; eye_ix < eyeCount; eye_ix++)
 		{
-			screen->Draw2D();
-			if (eyeCount - eye_ix > 1)
+			if (!vrmode->mEyes[eye_ix].mHideHUD) {
+				screen->Draw2D();
+			}
+
+			if (eye_ix < (eyeCount )) {
 				mBuffers->NextEye(eyeCount);
+			}
 		}
 		twod->Clear();
 

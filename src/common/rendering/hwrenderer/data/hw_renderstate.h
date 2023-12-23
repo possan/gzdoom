@@ -249,6 +249,8 @@ protected:
 public:
 
 	uint64_t firstFrame = 0;
+	uint8_t mHideHUD = 0;
+	uint8_t mEyeIndex = 0;
 	VSMatrix mModelMatrix;
 	VSMatrix mTextureMatrix;
 

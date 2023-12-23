@@ -89,6 +89,12 @@ public:
 	void Bind() override;
 };
 
+class FPresentDome1Shader : public FPresentShaderBase
+{
+public:
+	void Bind() override;
+};
+
 class FShadowMapShader
 {
 public:

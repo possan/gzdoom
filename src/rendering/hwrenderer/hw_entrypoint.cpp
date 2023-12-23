@@ -304,105 +304,104 @@ void WriteSavePic(player_t* player, FileWriter* file, int width, int height)
 //
 //===========================================================================
 
-static void CheckTimer(FRenderState &state, uint64_t ShaderStartTime)
-{
-	// if firstFrame is not yet initialized, initialize it to current time
-	// if we're going to overflow a float (after ~4.6 hours, or 24 bits), re-init to regain precision
-	if ((state.firstFrame == 0) || (screen->FrameTime - state.firstFrame >= 1 << 24) || ShaderStartTime >= state.firstFrame)
-		state.firstFrame = screen->FrameTime - 1;
+static void CheckTimer(FRenderState &state, uint64_t ShaderStartTime) {
+  // if firstFrame is not yet initialized, initialize it to current time
+  // if we're going to overflow a float (after ~4.6 hours, or 24 bits), re-init
+  // to regain precision
+  if ((state.firstFrame == 0) ||
+      (screen->FrameTime - state.firstFrame >= 1 << 24) ||
+      ShaderStartTime >= state.firstFrame)
+    state.firstFrame = screen->FrameTime - 1;
 }
 
+sector_t *RenderView(player_t *player) {
+  auto RenderState = screen->RenderState();
+  RenderState->SetVertexBuffer(screen->mVertexData);
+  screen->mVertexData->Reset();
+  hw_postprocess.SetTonemapMode(level.info ? level.info->tonemap
+                                           : ETonemapMode::None);
 
-sector_t* RenderView(player_t* player)
-{
-	auto RenderState = screen->RenderState();
-	RenderState->SetVertexBuffer(screen->mVertexData);
-	screen->mVertexData->Reset();
-	hw_postprocess.SetTonemapMode(level.info ? level.info->tonemap : ETonemapMode::None);
+  sector_t *retsec;
+  if (!V_IsHardwareRenderer()) {
+    screen->SetActiveRenderTarget(); // only relevant for Vulkan
 
-	sector_t* retsec;
-	if (!V_IsHardwareRenderer())
-	{
-		screen->SetActiveRenderTarget();	// only relevant for Vulkan
+    if (!swdrawer)
+      swdrawer = new SWSceneDrawer;
+    retsec = swdrawer->RenderView(player);
+  } else {
+    hw_ClearFakeFlat();
 
-		if (!swdrawer) swdrawer = new SWSceneDrawer;
-		retsec = swdrawer->RenderView(player);
-	}
-	else
-	{
-		hw_ClearFakeFlat();
+    iter_dlightf = iter_dlight = draw_dlight = draw_dlightf = 0;
 
-		iter_dlightf = iter_dlight = draw_dlight = draw_dlightf = 0;
+    checkBenchActive();
 
-		checkBenchActive();
+    // reset statistics counters
+    ResetProfilingData();
 
-		// reset statistics counters
-		ResetProfilingData();
+    // Get this before everything else
+    if (cl_capfps || r_NoInterpolate)
+      r_viewpoint.TicFrac = 1.;
+    else
+      r_viewpoint.TicFrac = I_GetTimeFrac();
 
-		// Get this before everything else
-		if (cl_capfps || r_NoInterpolate) r_viewpoint.TicFrac = 1.;
-		else r_viewpoint.TicFrac = I_GetTimeFrac();
+    screen->mLights->Clear();
+    screen->mBones->Clear();
+    screen->mViewpoints->Clear();
 
-		screen->mLights->Clear();
-		screen->mBones->Clear();
-		screen->mViewpoints->Clear();
+    // NoInterpolateView should have no bearing on camera textures, but needs to
+    // be preserved for the main view below.
+    bool saved_niv = NoInterpolateView;
+    NoInterpolateView = false;
 
-		// NoInterpolateView should have no bearing on camera textures, but needs to be preserved for the main view below.
-		bool saved_niv = NoInterpolateView;
-		NoInterpolateView = false;
+    // Shader start time does not need to be handled per level. Just use the one
+    // from the camera to render from.
+    if (player->camera)
+      CheckTimer(*RenderState, player->camera->Level->ShaderStartTime);
 
-		// Shader start time does not need to be handled per level. Just use the one from the camera to render from.
-		if (player->camera)
-			CheckTimer(*RenderState, player->camera->Level->ShaderStartTime);
+    // Draw all canvases that changed
+    for (FCanvas *canvas : AllCanvases) {
+      if (canvas->Tex->CheckNeedsUpdate()) {
+        screen->RenderTextureView(canvas->Tex, [=](IntRect &bounds) {
+          screen->SetViewportRects(&bounds);
+          Draw2D(&canvas->Drawer, *screen->RenderState(), 0, 0,
+                 canvas->Tex->GetWidth(), canvas->Tex->GetHeight());
+          canvas->Drawer.Clear();
+        });
+        canvas->Tex->SetUpdated(true);
+      }
+    }
 
-		// Draw all canvases that changed
-		for (FCanvas* canvas : AllCanvases)
-		{
-			if (canvas->Tex->CheckNeedsUpdate())
-			{
-				screen->RenderTextureView(canvas->Tex, [=](IntRect& bounds)
-					{
-						screen->SetViewportRects(&bounds);
-						Draw2D(&canvas->Drawer, *screen->RenderState(), 0, 0, canvas->Tex->GetWidth(), canvas->Tex->GetHeight());
-						canvas->Drawer.Clear();
-					});
-				canvas->Tex->SetUpdated(true);
-			}
-		}
+    // prepare all camera textures that have been used in the last frame.
+    // This must be done for all levels, not just the primary one!
+    for (auto Level : AllLevels()) {
+      Level->canvasTextureInfo.UpdateAll(
+          [&](AActor *camera, FCanvasTexture *camtex, double fov) {
+            screen->RenderTextureView(camtex, [=](IntRect &bounds) {
+              FRenderViewpoint texvp;
+              float ratio = camtex->aspectRatio / Level->info->pixelstretch;
+              RenderViewpoint(texvp, camera, &bounds, fov, ratio, ratio, false,
+                              false);
+            });
+          });
+    }
+    NoInterpolateView = saved_niv;
 
-		// prepare all camera textures that have been used in the last frame.
-		// This must be done for all levels, not just the primary one!
-		for (auto Level : AllLevels())
-		{
-			Level->canvasTextureInfo.UpdateAll([&](AActor* camera, FCanvasTexture* camtex, double fov)
-				{
-					screen->RenderTextureView(camtex, [=](IntRect& bounds)
-						{
-							FRenderViewpoint texvp;
-							float ratio = camtex->aspectRatio / Level->info->pixelstretch;
-							RenderViewpoint(texvp, camera, &bounds, fov, ratio, ratio, false, false);
-						});
-				});
-		}
-		NoInterpolateView = saved_niv;
+    // now render the main view
+    float fovratio;
+    float ratio = r_viewwindow.WidescreenRatio;
+    if (r_viewwindow.WidescreenRatio >= 1.3f) {
+      fovratio = 1.333333f;
+    } else {
+      fovratio = ratio;
+    }
 
-		// now render the main view
-		float fovratio;
-		float ratio = r_viewwindow.WidescreenRatio;
-		if (r_viewwindow.WidescreenRatio >= 1.3f)
-		{
-			fovratio = 1.333333f;
-		}
-		else
-		{
-			fovratio = ratio;
-		}
+    screen->ImageTransitionScene(true); // Only relevant for Vulkan.
 
-		screen->ImageTransitionScene(true); // Only relevant for Vulkan.
-
-		retsec = RenderViewpoint(r_viewpoint, player->camera, NULL, r_viewpoint.FieldOfView.Degrees(), ratio, fovratio, true, true);
-	}
-	All.Unclock();
-	return retsec;
+    retsec = RenderViewpoint(r_viewpoint, player->camera, NULL,
+                             r_viewpoint.FieldOfView.Degrees() +
+                                 (float)(-1 + rand() % 3),
+                             ratio, fovratio, true, true);
+  }
+  All.Unclock();
+  return retsec;
 }
-

@@ -28,6 +28,7 @@
 #include "hw_shaderpatcher.h"
 #include "filesystem.h"
 #include "printf.h"
+#include "c_console.h"
 #include "cmdlib.h"
 
 namespace OpenGLRenderer
@@ -341,6 +342,15 @@ void FPresent3DRowShader::Bind()
 	if (!mShader)
 	{
 		Init("shaders/pp/present_row3d.fp", "shaders/pp/presentRow3d");
+	}
+	mShader->Bind();
+}
+
+void FPresentDome1Shader::Bind()
+{
+	if (!mShader)
+	{
+		Init("shaders/pp/present_dome1.fp", "shaders/pp/presentDome1");
 	}
 	mShader->Bind();
 }

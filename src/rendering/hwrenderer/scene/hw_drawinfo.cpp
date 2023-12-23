@@ -439,6 +439,7 @@ void HWDrawInfo::CreateScene(bool drawpsprites)
 {
 	const auto &vp = Viewpoint;
 	angle_t a1 = FrustumAngle();
+	a1 = ANGLE_180;
 	mClipper->SafeAddClipRangeRealAngles(vp.Angles.Yaw.BAMs() + a1, vp.Angles.Yaw.BAMs() - a1);
 
 	// reset the portal manager
@@ -727,7 +728,7 @@ void HWDrawInfo::EndDrawScene(sector_t * viewsector, FRenderState &state)
 
 	// [BB] HUD models need to be rendered here. 
 	const bool renderHUDModel = IsHUDModelForPlayerAvailable(players[consoleplayer].camera->player);
-	if (renderHUDModel)
+	if (renderHUDModel && !state.mHideHUD)
 	{
 		// [BB] The HUD model should be drawn over everything else already drawn.
 		state.Clear(CT_Depth);
@@ -756,7 +757,9 @@ void HWDrawInfo::DrawEndScene2D(sector_t * viewsector, FRenderState &state)
 	state.EnableDepthTest(false);
 	state.EnableMultisampling(false);
 
-	DrawPlayerSprites(false, state);
+	if (!state.mHideHUD) {
+		DrawPlayerSprites(false, state);
+	}
 
 	state.SetNoSoftLightLevel();
 

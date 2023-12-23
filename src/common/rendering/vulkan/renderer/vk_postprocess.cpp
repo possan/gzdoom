@@ -261,10 +261,12 @@ void VkPostprocess::BlurScene(float gameinfobluramount)
 
 	auto vrmode = VRMode::GetVRMode(true);
 	int eyeCount = vrmode->mEyeCount;
-	for (int i = 0; i < eyeCount; ++i)
+	for (int i = 0; i < eyeCount; i++)
 	{
 		hw_postprocess.bloom.RenderBlur(&renderstate, sceneWidth, sceneHeight, gameinfobluramount);
-		if (eyeCount - i > 1) NextEye(eyeCount);
+		if (i < (eyeCount )) {
+			NextEye(eyeCount);
+		}
 	}
 }
 

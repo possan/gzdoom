@@ -35,6 +35,7 @@ namespace OpenGLRenderer
 	class FPresent3DCheckerShader;
 	class FPresent3DColumnShader;
 	class FPresent3DRowShader;
+	class FPresentDome1Shader;
 	class FShadowMapShader;
 
 class FGLRenderer
@@ -59,6 +60,7 @@ public:
 	FPresent3DCheckerShader *mPresent3dCheckerShader = nullptr;
 	FPresent3DColumnShader *mPresent3dColumnShader = nullptr;
 	FPresent3DRowShader *mPresent3dRowShader = nullptr;
+	FPresentDome1Shader *mPresentDome1Shader = nullptr;
 	FShadowMapShader *mShadowMapShader = nullptr;
 
 	int mLightMapID = 0;
@@ -99,7 +101,7 @@ private:
 	void PresentRowInterleaved();
 	void PresentCheckerInterleaved();
 	void PresentQuadStereo();
-
+	void PresentDome1(int vrmode);
 };
 
 struct TexFilter_s

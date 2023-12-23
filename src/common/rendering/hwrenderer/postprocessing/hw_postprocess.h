@@ -732,6 +732,8 @@ struct PresentUniforms
 	FVector2 Offset;
 	float ColorScale;
 	int HdrMode;
+	float Time;
+	float Pitch;
 
 	static std::vector<UniformFieldDesc> Desc()
 	{
@@ -746,7 +748,9 @@ struct PresentUniforms
 			{ "UVScale", UniformType::Vec2, offsetof(PresentUniforms, Scale) },
 			{ "UVOffset", UniformType::Vec2, offsetof(PresentUniforms, Offset) },
 			{ "ColorScale", UniformType::Float, offsetof(PresentUniforms, ColorScale) },
-			{ "HdrMode", UniformType::Int, offsetof(PresentUniforms, HdrMode) }
+			{ "HdrMode", UniformType::Int, offsetof(PresentUniforms, HdrMode) },
+			{ "Time", UniformType::Float, offsetof(PresentUniforms, Time) },
+			{ "Pitch", UniformType::Float, offsetof(PresentUniforms, Pitch) },
 		};
 	}
 };
@@ -762,6 +766,7 @@ public:
 	PPShader Checker3D = { "shaders/pp/present_checker3d.fp", "", PresentUniforms::Desc() };
 	PPShader Column3D = { "shaders/pp/present_column3d.fp", "", PresentUniforms::Desc() };
 	PPShader Row3D = { "shaders/pp/present_row3d.fp", "", PresentUniforms::Desc() };
+	PPShader Dome1 = { "shaders/pp/present_dome1.fp", "", PresentUniforms::Desc() };
 };
 
 struct ShadowMapUniforms
